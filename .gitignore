@@ -1,0 +1,17 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Personal Garmin data — never commit
+dashboard_data.json
+garmin.db
+
+.DS_Store
+

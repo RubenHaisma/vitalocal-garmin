@@ -1,0 +1,15 @@
+[project]
+name = "garmingpt"
+version = "0.2.0"
+description = "Private, local AI health dashboard for your Garmin — forecasts, recovery score, and Ollama predictions, all on your own machine."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.111.0",
+    "fastapi>=0.139.0",
+    "garminconnect>=0.3.6",
+    "garth>=0.8.0",
+    "httpx>=0.28.1",
+    "numpy>=2.5.1",
+    "uvicorn[standard]>=0.51.0",
+]

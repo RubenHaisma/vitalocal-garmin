@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GarminGPT — ML Health Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root {
+    --ground:#F1F4F3; --panel:#FFFFFF; --panel-2:#F7FAF9; --line:#E1E8E6;
+    --ink:#0E1A18; --ink-2:#35433F; --muted:#61726D;
+    --accent:#0C9E7E; --accent-soft:rgba(12,158,126,.12);
+    --good:#0C9E7E; --warn:#B9740A; --crit:#CE3E42;
+    --grid:rgba(14,26,24,.07); --band:rgba(12,158,126,.14);
+    --shadow:0 1px 2px rgba(14,26,24,.05),0 10px 28px -14px rgba(14,26,24,.16);
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --ground:#080B0F; --panel:#111821; --panel-2:#0D141B; --line:#1E2833; --ink:#E9EEF2; --ink-2:#B7C2CB; --muted:#7C8B99; --accent:#21E6B6; --accent-soft:rgba(33,230,182,.10); --good:#21E6B6; --warn:#F5B14C; --crit:#FF6B6B; --grid:rgba(233,238,242,.06); --band:rgba(33,230,182,.13); --shadow:0 1px 0 rgba(255,255,255,.02),0 30px 60px -30px rgba(0,0,0,.7); }
+  }
+  :root[data-theme="light"] { --ground:#F1F4F3; --panel:#FFFFFF; --panel-2:#F7FAF9; --line:#E1E8E6; --ink:#0E1A18; --ink-2:#35433F; --muted:#61726D; --accent:#0C9E7E; --accent-soft:rgba(12,158,126,.12); --good:#0C9E7E; --warn:#B9740A; --crit:#CE3E42; --grid:rgba(14,26,24,.07); --band:rgba(12,158,126,.14); --shadow:0 1px 2px rgba(14,26,24,.05),0 10px 28px -14px rgba(14,26,24,.16); }
+  :root[data-theme="dark"]  { --ground:#080B0F; --panel:#111821; --panel-2:#0D141B; --line:#1E2833; --ink:#E9EEF2; --ink-2:#B7C2CB; --muted:#7C8B99; --accent:#21E6B6; --accent-soft:rgba(33,230,182,.10); --good:#21E6B6; --warn:#F5B14C; --crit:#FF6B6B; --grid:rgba(233,238,242,.06); --band:rgba(33,230,182,.13); --shadow:0 1px 0 rgba(255,255,255,.02),0 30px 60px -30px rgba(0,0,0,.7); }
+
+  html, body { margin:0; }
+  body { background:var(--ground); color:var(--ink); font-family:var(--sans); line-height:1.5; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1160px; margin:0 auto; padding:clamp(18px,4vw,40px); }
+  button { font-family:inherit; cursor:pointer; }
+  .mono { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+
+  /* header */
+  .head { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:14px 24px; padding-bottom:18px; border-bottom:1px solid var(--line); }
+  .eyebrow { font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); font-weight:600; display:flex; align-items:center; gap:9px; margin-bottom:8px; }
+  .pulse { width:8px; height:8px; border-radius:50%; background:var(--accent); animation:pulse 2.4s ease-out infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 var(--accent-soft);} 70%{box-shadow:0 0 0 7px transparent;} 100%{box-shadow:0 0 0 0 transparent;} }
+  h1 { margin:0; font-size:clamp(25px,5vw,38px); font-weight:640; letter-spacing:-.02em; }
+  .head-right { display:flex; flex-direction:column; align-items:flex-end; gap:10px; }
+  .pills { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+  .pill { display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11.5px; color:var(--ink-2); background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:5px 11px; white-space:nowrap; }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); flex:none; }
+  .dot.on{background:var(--good);} .dot.off{background:var(--crit);}
+  .btns { display:flex; gap:8px; }
+  .btn { display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:600; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 14px; box-shadow:var(--shadow); transition:transform .08s ease,border-color .15s ease; }
+  .btn:hover{border-color:var(--accent);} .btn:active{transform:translateY(1px);}
+  .btn.primary{background:var(--accent); color:#04120E; border-color:transparent;}
+  .btn[disabled]{opacity:.5; cursor:default;}
+  .btn.icon{padding:8px 10px;}
+
+  .sect { margin:26px 0 13px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:600; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .sect .hint { text-transform:none; letter-spacing:0; font-weight:500; color:var(--muted); font-size:11.5px; font-family:var(--mono); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); }
+
+  /* hero row: recovery + load */
+  .hero { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:20px; }
+  .hero .card { padding:18px 20px; }
+  .card-lab { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); font-weight:600; margin-bottom:12px; }
+  .rec { display:flex; gap:18px; align-items:center; }
+  .gauge-wrap { position:relative; width:104px; height:104px; flex:none; }
+  .gauge-num { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .gauge-num b { font-family:var(--mono); font-size:30px; font-weight:600; letter-spacing:-.03em; line-height:1; }
+  .gauge-num span { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-top:3px; }
+  .rec-comps { flex:1; min-width:0; display:flex; flex-direction:column; gap:8px; }
+  .comp { display:grid; grid-template-columns:82px 1fr auto; align-items:center; gap:8px; font-size:12px; }
+  .comp .cl { color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .comp .bar { height:6px; border-radius:3px; background:var(--line); overflow:hidden; }
+  .comp .bar i { display:block; height:100%; border-radius:3px; }
+  .comp .cv { font-family:var(--mono); font-size:11px; color:var(--muted); white-space:nowrap; }
+  .drag-note { margin-top:12px; font-size:12px; color:var(--warn); }
+
+  .acwr-big { display:flex; align-items:baseline; gap:8px; }
+  .acwr-big b { font-family:var(--mono); font-size:34px; font-weight:600; letter-spacing:-.03em; }
+  .zone-label { font-size:13px; font-weight:600; }
+  .zonebar { position:relative; height:10px; border-radius:5px; margin:16px 0 8px; background:linear-gradient(90deg, color-mix(in srgb,var(--muted) 40%,transparent) 0 30%, var(--good) 30% 62%, var(--warn) 62% 75%, var(--crit) 75% 100%); }
+  .zonebar .mark { position:absolute; top:-4px; width:3px; height:18px; background:var(--ink); border-radius:2px; box-shadow:0 0 0 2px var(--panel); }
+  .zone-scale { display:flex; justify-content:space-between; font-family:var(--mono); font-size:10px; color:var(--muted); }
+  .load-meta { display:flex; gap:16px; margin-top:12px; font-family:var(--mono); font-size:11.5px; color:var(--muted); }
+  .load-meta b { color:var(--ink-2); font-weight:500; }
+
+  /* AI structured panel */
+  .ai { margin:20px 0; overflow:hidden; }
+  .ai-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 20px; border-bottom:1px solid var(--line); background:linear-gradient(180deg,var(--accent-soft),transparent); }
+  .ai-title { display:flex; align-items:center; gap:10px; font-weight:640; font-size:15px; }
+  .spark-i { width:18px; height:18px; color:var(--accent); flex:none; }
+  .ai-model { font-family:var(--mono); font-size:11px; color:var(--muted); }
+  .ai-body { padding:18px 20px 20px; }
+  .ai-idle { color:var(--muted); font-size:13.5px; }
+  .state-pill { display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:640; padding:6px 13px; border-radius:999px; margin-bottom:12px; }
+  .state-pill .d { width:8px; height:8px; border-radius:50%; }
+  .tone-positive{color:var(--good); background:var(--accent-soft);} .tone-positive .d{background:var(--good);}
+  .tone-neutral{color:var(--ink-2); background:color-mix(in srgb,var(--muted) 14%,transparent);} .tone-neutral .d{background:var(--muted);}
+  .tone-caution{color:var(--warn); background:color-mix(in srgb,var(--warn) 14%,transparent);} .tone-caution .d{background:var(--warn);}
+  .tone-risk{color:var(--crit); background:color-mix(in srgb,var(--crit) 13%,transparent);} .tone-risk .d{background:var(--crit);}
+  .ai-summary { font-size:14.5px; color:var(--ink-2); margin:0 0 16px; }
+  .ai-cols { display:grid; grid-template-columns:1fr 1fr; gap:18px 26px; }
+  .ai-h { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); font-weight:600; margin:0 0 9px; }
+  .pred { display:flex; gap:8px; align-items:baseline; font-size:13px; padding:5px 0; border-bottom:1px solid var(--line); }
+  .pred:last-child{border-bottom:0;}
+  .pred .pm { font-weight:600; color:var(--ink); min-width:82px; }
+  .pred .pa { font-family:var(--mono); font-size:12px; flex:none; }
+  .pa.improving{color:var(--good);} .pa.declining{color:var(--crit);} .pa.stable{color:var(--muted);}
+  .pred .pd { color:var(--muted); font-size:12.5px; }
+  .risk, .rec-item { display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  .risk:last-child, .rec-item:last-child{border-bottom:0;}
+  .sev { width:9px; height:9px; border-radius:50%; margin-top:5px; flex:none; }
+  .sev.low{background:var(--muted);} .sev.medium{background:var(--warn);} .sev.high{background:var(--crit);}
+  .risk b, .rec-item b { color:var(--ink); font-weight:600; }
+  .risk .rd, .rec-item .rw { color:var(--muted); font-size:12.5px; }
+  .rec-num { font-family:var(--mono); color:var(--accent); font-weight:600; flex:none; }
+  .watch { margin-top:16px; padding:12px 15px; border-radius:12px; background:var(--panel-2); border:1px solid var(--line); font-size:13.5px; color:var(--ink-2); display:flex; gap:9px; align-items:flex-start; }
+  .watch b { color:var(--ink); }
+  .cursor { display:inline-block; width:8px; height:1.05em; background:var(--accent); vertical-align:text-bottom; margin-left:2px; animation:blink 1s step-end infinite; }
+  @keyframes blink { 50%{opacity:0;} }
+
+  /* chat */
+  .chat { margin:20px 0; }
+  .chat-head { padding:14px 20px; border-bottom:1px solid var(--line); font-weight:640; font-size:14px; display:flex; align-items:center; gap:9px; }
+  .chat-log { padding:16px 20px; display:flex; flex-direction:column; gap:12px; max-height:420px; overflow-y:auto; }
+  .msg { max-width:82%; font-size:14px; line-height:1.55; padding:10px 14px; border-radius:14px; }
+  .msg.u { align-self:flex-end; background:var(--accent); color:#04120E; border-bottom-right-radius:4px; }
+  .msg.a { align-self:flex-start; background:var(--panel-2); border:1px solid var(--line); color:var(--ink-2); border-bottom-left-radius:4px; }
+  .msg.a p{margin:0 0 8px;} .msg.a p:last-child{margin:0;} .msg.a ul{margin:4px 0; padding-left:18px;} .msg.a strong{color:var(--ink);}
+  .suggest { display:flex; gap:8px; flex-wrap:wrap; padding:0 20px 14px; }
+  .chip-q { font-size:12.5px; color:var(--ink-2); background:var(--panel-2); border:1px solid var(--line); border-radius:999px; padding:6px 12px; cursor:pointer; transition:border-color .15s; }
+  .chip-q:hover{border-color:var(--accent);}
+  .chat-in { display:flex; gap:8px; padding:14px 20px; border-top:1px solid var(--line); }
+  .chat-in input { flex:1; font:inherit; font-size:14px; color:var(--ink); background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:10px 14px; }
+  .chat-in input:focus{outline:none; border-color:var(--accent);}
+
+  /* metric grid */
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px; }
+  .kpi { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:15px 16px 10px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:7px; min-width:0; }
+  .kpi-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+  .kpi .lab { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  .kpi .val { font-family:var(--mono); font-size:29px; font-weight:600; letter-spacing:-.03em; line-height:1; font-variant-numeric:tabular-nums; display:flex; align-items:baseline; gap:4px; }
+  .kpi .val .u { font-size:12px; color:var(--muted); font-weight:500; }
+  .badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:600; line-height:1; white-space:nowrap; }
+  .badge.good{color:var(--good); background:var(--accent-soft);} .badge.bad{color:var(--crit); background:color-mix(in srgb,var(--crit) 13%,transparent);} .badge.flat{color:var(--muted); background:color-mix(in srgb,var(--muted) 14%,transparent);}
+  .kpi .chart { height:74px; margin:2px -2px 0; }
+  .kpi .fmeta { display:flex; align-items:center; justify-content:space-between; font-family:var(--mono); font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .kpi .fmeta .pred2 b { color:var(--accent); font-weight:600; }
+  .conf { display:inline-flex; gap:2px; } .conf i { width:4px; height:9px; border-radius:1px; background:var(--line); } .conf i.on{background:var(--accent);}
+  .anom { color:var(--warn); font-weight:600; }
+
+  /* drivers */
+  .drv-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .drv .card-lab { margin-bottom:14px; }
+  .drow { display:grid; grid-template-columns:120px 1fr 46px; align-items:center; gap:10px; padding:7px 0; font-size:12.5px; }
+  .drow .dl { color:var(--ink-2); }
+  .cbar { position:relative; height:8px; background:var(--line); border-radius:4px; }
+  .cbar .mid { position:absolute; left:50%; top:-2px; width:1px; height:12px; background:var(--muted); opacity:.5; }
+  .cbar i { position:absolute; top:0; height:100%; border-radius:4px; }
+  .drow .dr { font-family:var(--mono); font-size:11.5px; text-align:right; color:var(--ink-2); }
+  .drv-note { margin-top:10px; font-size:11.5px; color:var(--muted); font-family:var(--mono); }
+
+  /* table */
+  .tablewrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; min-width:560px; }
+  thead th { text-align:left; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:600; padding:13px 16px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  tbody td { padding:12px 16px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; color:var(--ink-2); white-space:nowrap; }
+  tbody tr:last-child td{border-bottom:0;}
+  td.num { font-family:var(--mono); text-align:right; } td.name{color:var(--ink); font-weight:500; white-space:normal;}
+  .tag { font-family:var(--mono); font-size:10.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--accent); background:var(--accent-soft); padding:2px 7px; border-radius:5px; }
+
+  /* login + first sync */
+  .login { max-width:440px; margin:52px auto; padding:34px 32px; }
+  .login-title { font-size:22px; font-weight:640; letter-spacing:-.01em; margin-bottom:8px; }
+  .login-sub { font-size:13.5px; color:var(--muted); line-height:1.6; margin-bottom:22px; }
+  .login form { display:flex; flex-direction:column; gap:11px; }
+  .login input { font:inherit; font-size:15px; color:var(--ink); background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .login input:focus { outline:none; border-color:var(--accent); }
+  .login .btn { justify-content:center; padding:12px; font-size:15px; margin-top:4px; }
+  .login-err { color:var(--crit); font-size:13px; min-height:0; }
+  .login-note { margin-top:18px; font-size:11.5px; color:var(--muted); font-family:var(--mono); line-height:1.7; }
+  .syncing { max-width:460px; margin:70px auto; text-align:center; }
+  .spin { width:34px; height:34px; margin:0 auto 18px; border:3px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .syncing .t { font-size:16px; font-weight:600; margin-bottom:6px; }
+  .syncing .s { font-size:13px; color:var(--muted); }
+  .empty { color:var(--muted); font-size:13.5px; padding:30px; text-align:center; font-family:var(--mono); line-height:1.9; }
+  .empty code { color:var(--ink-2); background:var(--panel-2); padding:2px 6px; border-radius:5px; }
+  .empty-hero { border:1px dashed var(--line); border-radius:16px; margin:40px 0; }
+  .foot { margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); font-family:var(--mono); display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+
+  svg { display:block; width:100%; }
+  .c-histline{fill:none; stroke:var(--accent); stroke-width:2; stroke-linejoin:round; stroke-linecap:round;}
+  .c-fcline{fill:none; stroke:var(--accent); stroke-width:1.75; stroke-dasharray:3.5 3; opacity:.9;}
+  .c-band{fill:var(--band); stroke:none;} .c-now{stroke:var(--muted); stroke-width:1; stroke-dasharray:2 3; opacity:.5;}
+  .c-dot{fill:var(--panel); stroke:var(--accent); stroke-width:2;} .c-fdot{fill:var(--accent);}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:6px;}
+  @media (max-width:820px){ .hero,.ai-cols,.drv-grid{grid-template-columns:1fr;} }
+  @media (prefers-reduced-motion:reduce){ .pulse,.cursor{animation:none;} .btn{transition:none;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <div class="eyebrow"><span class="pulse"></span> <span id="span-label">ML health telemetry</span></div>
+      <h1 id="who">GarminGPT</h1>
+    </div>
+    <div class="head-right">
+      <div class="pills">
+        <span class="pill" id="pill-data"><span class="dot"></span> <span>data</span></span>
+        <span class="pill" id="pill-ollama"><span class="dot"></span> <span>ollama</span></span>
+      </div>
+      <div class="btns">
+        <button class="btn icon" id="theme-btn" title="Toggle theme" aria-label="Toggle theme">◐</button>
+        <button class="btn" id="sync-btn" title="Re-pull from Garmin">↻ Sync</button>
+        <button class="btn primary" id="predict-btn">✦ Predict</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="content"></div>
+
+  <div class="foot">
+    <span>GarminGPT &middot; local ML dashboard &middot; python-garminconnect + Ollama</span>
+    <span>your data &mdash; never leaves this machine</span>
+  </div>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="g-band" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity="0.16"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient>
+</defs></svg>
+
+<script>
+"use strict";
+const $ = (s,r=document)=>r.querySelector(s);
+const svgNS="http://www.w3.org/2000/svg";
+const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fdate=s=>{ if(!s) return ""; const p=String(s).slice(0,10).split("-"); return p.length===3?(+p[2])+" "+MONTHS[(+p[1])-1]:s; };
+const fmt=(n,dec)=>{ if(n==null||isNaN(n)) return "–"; return (+n).toLocaleString(undefined,{minimumFractionDigits:dec||0,maximumFractionDigits:dec||0}); };
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const el=(t,c,h)=>{ const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e; };
+const bandColor=b=>b==="recovered"?"var(--good)":b==="moderate"?"var(--warn)":"var(--crit)";
+const zoneColor=z=>({optimal:"var(--good)",caution:"var(--warn)",high:"var(--crit)",low:"var(--muted)",insufficient:"var(--muted)",unknown:"var(--muted)"}[z]||"var(--muted)");
+
+/* theme */
+(function(){ const s=localStorage.getItem("gg-theme"); if(s)document.documentElement.setAttribute("data-theme",s);
+  $("#theme-btn").addEventListener("click",()=>{ const cur=document.documentElement.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"); const nx=cur==="dark"?"light":"dark"; document.documentElement.setAttribute("data-theme",nx); localStorage.setItem("gg-theme",nx); redrawAll(); });
+})();
+
+/* ---------- forecast chart ---------- */
+const sEl=(n,a)=>{ const e=document.createElementNS(svgNS,n); for(const k in a)e.setAttribute(k,a[k]); return e; };
+window.__CHARTS=[];
+function buildChart(container,hist,forecast,dec){
+  container.innerHTML="";
+  const w=Math.max(150,container.clientWidth||300), h=container.clientHeight||74, padY=8, padX=2;
+  const span=hist.length, H=forecast?forecast.length:0, total=span+H;
+  const vv=[]; hist.forEach(v=>{ if(v!=null&&!isNaN(v))vv.push(v); }); if(forecast)forecast.forEach(f=>{vv.push(f.lo);vv.push(f.hi);});
+  if(vv.length<2){ container.innerHTML='<div class="empty" style="padding:14px 0;font-size:11px">no series</div>'; return; }
+  let mn=Math.min(...vv),mx=Math.max(...vv); if(mn===mx){mn-=1;mx+=1;}
+  const X=i=>padX+(i/(total-1||1))*(w-2*padX), Y=v=>padY+(1-(v-mn)/(mx-mn))*(h-2*padY);
+  const svg=sEl("svg",{viewBox:`0 0 ${w} ${h}`,width:w,height:h,preserveAspectRatio:"none"});
+  const hp=[]; hist.forEach((v,i)=>{ if(v!=null&&!isNaN(v))hp.push({x:i,v}); });
+  const lastH=hp.length?hp[hp.length-1]:null;
+  if(forecast&&forecast.length&&lastH){
+    let up=`M${X(lastH.x).toFixed(1)} ${Y(lastH.v).toFixed(1)}`;
+    forecast.forEach((f,j)=>{ up+=` L${X(span+j).toFixed(1)} ${Y(f.hi).toFixed(1)}`; });
+    for(let j=forecast.length-1;j>=0;j--){ up+=` L${X(span+j).toFixed(1)} ${Y(forecast[j].lo).toFixed(1)}`; }
+    up+=" Z"; svg.appendChild(sEl("path",{d:up,class:"c-band"}));
+    const nx=X(span-1); svg.appendChild(sEl("line",{x1:nx,y1:padY,x2:nx,y2:h-padY,class:"c-now"}));
+    let fl=`M${X(lastH.x).toFixed(1)} ${Y(lastH.v).toFixed(1)}`; forecast.forEach((f,j)=>{ fl+=` L${X(span+j).toFixed(1)} ${Y(f.mean).toFixed(1)}`; });
+    svg.appendChild(sEl("path",{d:fl,class:"c-fcline","vector-effect":"non-scaling-stroke"}));
+    const fe=forecast[forecast.length-1]; svg.appendChild(sEl("circle",{cx:X(total-1).toFixed(1),cy:Y(fe.mean).toFixed(1),r:2.4,class:"c-fdot"}));
+  }
+  if(hp.length>=2) svg.appendChild(sEl("path",{d:hp.map((p,i)=>(i?"L":"M")+X(p.x).toFixed(1)+" "+Y(p.v).toFixed(1)).join(" "),class:"c-histline","vector-effect":"non-scaling-stroke"}));
+  if(lastH) svg.appendChild(sEl("circle",{cx:X(lastH.x).toFixed(1),cy:Y(lastH.v).toFixed(1),r:2.8,class:"c-dot","vector-effect":"non-scaling-stroke"}));
+  container.appendChild(svg);
+}
+function redrawAll(){ window.__CHARTS.forEach(c=>buildChart(c.el,c.hist,c.fc,c.dec)); }
+let rt; addEventListener("resize",()=>{ clearTimeout(rt); rt=setTimeout(redrawAll,120); });
+
+/* ---------- status ---------- */
+async function loadStatus(){
+  let s={}; try{ s=await (await fetch("/api/status")).json(); }catch(e){}
+  const pd=$("#pill-data"),po=$("#pill-ollama");
+  pd.querySelector(".dot").className="dot "+(s.has_data?"on":"off");
+  pd.querySelector("span:last-child").textContent=s.has_data?(s.days_with_data+" days · "+fdate(s.generated)):"no data";
+  po.querySelector(".dot").className="dot "+(s.ollama?"on":"off");
+  po.querySelector("span:last-child").textContent=s.ollama?(s.model||"ollama"):"ollama offline";
+  $("#predict-btn").disabled=!(s.ollama&&s.has_data);
+  window.__STATUS=s; return s;
+}
+
+/* ---------- recovery + load cards ---------- */
+function donut(pct,color){
+  const r=44,c=2*Math.PI*r,off=c*(1-Math.max(0,Math.min(100,pct))/100);
+  return `<svg viewBox="0 0 104 104" width="104" height="104"><circle cx="52" cy="52" r="${r}" fill="none" stroke="var(--line)" stroke-width="9"/>`+
+    `<circle cx="52" cy="52" r="${r}" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 52 52)"/></svg>`;
+}
+function recoveryCard(rec){
+  if(!rec) return null;
+  const col=bandColor(rec.band);
+  const comps=rec.components.map(c=>{
+    const cc=c.score>=67?"var(--good)":c.score>=45?"var(--warn)":"var(--crit)";
+    return `<div class="comp"><span class="cl">${esc(c.label)}</span><span class="bar"><i style="width:${c.score}%;background:${cc}"></i></span><span class="cv">${fmt(c.latest,c.key==='sleep_hours'?1:0)} · z${c.z>=0?'+':''}${c.z}</span></div>`;
+  }).join("");
+  const c=el("div","card");
+  c.innerHTML=`<div class="card-lab">Recovery · computed readiness</div><div class="rec">`+
+    `<div class="gauge-wrap">${donut(rec.score,col)}<div class="gauge-num"><b>${rec.score}</b><span style="color:${col}">${esc(rec.band)}</span></div></div>`+
+    `<div class="rec-comps">${comps}</div></div>`+
+    (rec.drag?`<div class="drag-note">▼ Held back by ${esc(rec.drag)}</div>`:"");
+  return c;
+}
+function loadCard(load){
+  if(!load) return null;
+  const c=el("div","card"); c.innerHTML=`<div class="card-lab">Training load · acute vs chronic</div>`;
+  if(load.acwr==null){
+    c.innerHTML+=`<div class="acwr-big"><b style="color:var(--muted)">—</b><span class="zone-label" style="color:var(--muted)">insufficient wear</span></div>`+
+      `<div class="load-meta"><span>acute <b>${fmt(load.acute,1)}</b></span><span>chronic <b>${fmt(load.chronic,1)}</b></span></div>`+
+      `<div class="drv-note">${esc(load.label)} — ACWR needs more consistent daily wear.</div>`;
+    return c;
+  }
+  const col=zoneColor(load.zone);
+  const pos=Math.max(2,Math.min(98,(load.acwr/2)*100)); // 0..2 → 0..100%
+  c.innerHTML+=`<div class="acwr-big"><b style="color:${col}">${load.acwr}</b><span class="zone-label" style="color:${col}">${esc(load.label)}</span></div>`+
+    `<div class="zonebar"><div class="mark" style="left:${pos}%"></div></div>`+
+    `<div class="zone-scale"><span>0.8</span><span>1.0</span><span>1.3</span><span>1.5</span><span>2.0+</span></div>`+
+    `<div class="load-meta"><span>acute <b>${fmt(load.acute,1)}</b> ${esc(load.unit)}</span><span>chronic <b>${fmt(load.chronic,1)}</b></span></div>`;
+  return c;
+}
+
+/* ---------- drivers ---------- */
+function driversCard(t){
+  const c=el("div","card drv"); c.style.padding="18px 20px";
+  let rows=t.drivers.map(d=>{
+    const mag=Math.min(48,Math.abs(d.r)*48); const pos=d.r>=0;
+    const col=d.strength==="strong"?"var(--accent)":d.strength==="moderate"?"color-mix(in srgb,var(--accent) 60%,var(--muted))":"var(--muted)";
+    const style=pos?`left:50%;width:${mag}%;background:${col}`:`right:50%;width:${mag}%;background:${col}`;
+    return `<div class="drow"><span class="dl">${esc(d.label)}</span><span class="cbar"><span class="mid"></span><i style="${style}"></i></span><span class="dr">${d.r>=0?'+':''}${d.r}</span></div>`;
+  }).join("");
+  c.innerHTML=`<div class="card-lab">What moves your ${esc(t.label)}</div>${rows}<div class="drv-note">Pearson r over ${t.n} paired days · left = lowers, right = raises</div>`;
+  return c;
+}
+
+/* ---------- data ---------- */
+async function loadData(){
+  const content=$("#content"); let res;
+  try{ res=await (await fetch("/api/data")).json(); }
+  catch(e){ content.innerHTML=`<div class="empty empty-hero">Could not reach the server.</div>`; return; }
+  if(res.empty){ content.innerHTML=`<div class="empty empty-hero">No Garmin data yet.<br><br>Pull it with <code>uv run python -m garmingpt dashboard</code><br>or press <b>↻ Sync</b>. Nothing is shown until real data exists.</div>`; return; }
+
+  const {data,analysis,analytics}=res; window.__CTX={data,analysis,analytics}; window.__CHARTS=[];
+  showHeaderBtns(true);
+  const _nm=data.profile&&data.profile.name;
+  const _first=(_nm && !/^[0-9a-fA-F-]{16,}$/.test(String(_nm).trim())) ? String(_nm).trim().split(/\s+/)[0] : "";
+  $("#who").textContent = _first ? ("Welcome, "+_first) : "Welcome back";
+  const days=data.days;
+  $("#span-label").textContent=`${analysis.signals.days_with_data} days of telemetry · ${fdate(days[0].date)} – ${fdate(days[days.length-1].date)}`;
+  content.innerHTML="";
+
+  // hero: recovery + load
+  const hero=el("div","hero");
+  const rc=recoveryCard(analytics.recovery), lc=loadCard(analytics.training_load);
+  if(rc)hero.appendChild(rc); if(lc)hero.appendChild(lc);
+  if(hero.children.length) content.appendChild(hero);
+
+  // AI structured panel
+  const ai=el("section","card ai");
+  ai.innerHTML=`<div class="ai-head"><div class="ai-title"><svg class="spark-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg> AI Forecast &amp; Possibilities</div><div class="ai-model" id="ai-model">${window.__STATUS&&window.__STATUS.model?("model: "+window.__STATUS.model):""}</div></div>`+
+    `<div class="ai-body" id="ai-body"><span class="ai-idle">Press <b>✦ Predict</b> to generate a structured 7-day forecast — state, per-metric predictions, risks and recommendations — from your own data.</span></div>`;
+  content.appendChild(ai);
+
+  // chat
+  const chat=el("section","card chat");
+  chat.innerHTML=`<div class="chat-head">💬 Ask your data</div><div class="chat-log" id="chat-log"></div>`+
+    `<div class="suggest" id="suggest">${["Am I overtraining?","Why is my HRV trending down?","How is my recovery this week?","What should I focus on?"].map(q=>`<button class="chip-q">${esc(q)}</button>`).join("")}</div>`+
+    `<form class="chat-in" id="chat-form"><input id="chat-input" placeholder="Ask about your metrics…" autocomplete="off"><button class="btn primary" type="submit">Send</button></form>`;
+  content.appendChild(chat);
+
+  // metrics grid
+  const sect=el("div","sect"); sect.innerHTML=`Metrics &amp; 7-day forecast <span class="hint">solid = history · dashed = predicted · band = 95% range</span>`;
+  content.appendChild(sect);
+  const grid=el("div","grid");
+  Object.values(analysis.metrics).forEach(m=>grid.appendChild(tile(days,m)));
+  const shown=new Set(Object.keys(analysis.metrics));
+  [["calories","Calories","kcal",0],["floors","Floors","",0]].forEach(([k,l,u,d])=>{ if(shown.has(k))return; const t=noForecastTile(days,k,l,u,d); if(t)grid.appendChild(t); });
+  content.appendChild(grid);
+
+  // drivers
+  const drv=analytics.drivers||{};
+  if(Object.keys(drv).length){
+    const s2=el("div","sect"); s2.innerHTML=`What drives your recovery <span class="hint">behaviours correlated with next-day readiness</span>`; content.appendChild(s2);
+    const dg=el("div","drv-grid"); Object.values(drv).forEach(t=>dg.appendChild(driversCard(t))); content.appendChild(dg);
+  }
+
+  // activities
+  const acts=(data.activities||[]).filter(a=>a&&a.date);
+  if(acts.length){
+    const s3=el("div","sect"); s3.textContent="Recent activities"; content.appendChild(s3);
+    const tw=el("div","card tablewrap");
+    tw.innerHTML=`<table><thead><tr><th>Activity</th><th>Type</th><th>Date</th><th>Distance</th><th>Duration</th><th>Avg HR</th><th>kcal</th></tr></thead><tbody>`+
+      acts.map(a=>`<tr><td class="name">${esc(a.name)}</td><td><span class="tag">${esc((a.type||"").replace(/_/g," "))}</span></td><td class="num">${fdate(a.date)}</td><td class="num">${a.distance_km!=null?fmt(a.distance_km,2)+" km":"–"}</td><td class="num">${a.duration_min!=null?fmt(a.duration_min,0)+" min":"–"}</td><td class="num">${a.avg_hr!=null?fmt(a.avg_hr,0):"–"}</td><td class="num">${a.calories!=null?fmt(a.calories,0):"–"}</td></tr>`).join("")+`</tbody></table>`;
+    content.appendChild(tw);
+  }
+  redrawAll(); wireChat();
+}
+
+function badge(m){ const cls=m.improving===true?"good":m.improving===false?"bad":"flat"; const arrow=m.trend==="up"?"▲":m.trend==="down"?"▼":"→"; const word=m.improving===true?"improving":m.improving===false?"declining":"stable"; return `<span class="badge ${cls}">${arrow} ${word}</span>`; }
+function conf(level){ const n=level==="high"?3:level==="medium"?2:1; return `<span class="conf" title="${level} confidence">`+[0,1,2].map(i=>`<i class="${i<n?'on':''}"></i>`).join("")+`</span>`; }
+function tile(days,m){
+  const hist=days.map(d=>d[m.key]==null?null:+d[m.key]); const cur=[...hist].reverse().find(v=>v!=null); const end=m.forecast[m.forecast.length-1];
+  const e=el("div","kpi");
+  e.innerHTML=`<div class="kpi-top"><div class="lab">${esc(m.label)}</div>${badge(m)}</div><div class="val">${cur==null?"–":fmt(cur,m.dec)}${m.unit?` <span class="u">${esc(m.unit)}</span>`:""}</div><div class="chart"></div>`+
+    `<div class="fmeta"><span class="pred2">7-day → <b>${fmt(end.mean,m.dec)}</b> <span style="opacity:.7">(${fmt(end.lo,m.dec)}–${fmt(end.hi,m.dec)})</span></span>${conf(m.confidence)}</div>`+
+    (m.anomaly?`<div class="fmeta"><span class="anom">⚠ latest off-trend</span></div>`:"");
+  const chart=e.querySelector(".chart"); window.__CHARTS.push({el:chart,hist,fc:m.forecast,dec:m.dec}); queueMicrotask(()=>buildChart(chart,hist,m.forecast,m.dec)); return e;
+}
+function noForecastTile(days,key,label,unit,dec){
+  const hist=days.map(d=>d[key]==null?null:+d[key]); const cur=[...hist].reverse().find(v=>v!=null); if(cur==null)return null;
+  const e=el("div","kpi"); e.innerHTML=`<div class="kpi-top"><div class="lab">${esc(label)}</div><span class="badge flat" title="not enough points to forecast">insufficient data</span></div><div class="val">${fmt(cur,dec)}${unit?` <span class="u">${esc(unit)}</span>`:""}</div><div class="chart"></div>`;
+  const chart=e.querySelector(".chart"); window.__CHARTS.push({el:chart,hist,fc:null,dec}); queueMicrotask(()=>buildChart(chart,hist,null,dec)); return e;
+}
+
+/* ---------- structured predict ---------- */
+const ARROW={improving:"▲",declining:"▼",stable:"→"};
+function renderInsight(o){
+  const body=$("#ai-body"); const t=o.state&&o.state.tone||"neutral";
+  const preds=(o.predictions||[]).map(p=>`<div class="pred"><span class="pm">${esc(p.metric)}</span><span class="pa ${esc(p.direction)}">${ARROW[p.direction]||"·"}</span><span class="pd">${esc(p.detail)}</span></div>`).join("");
+  const risks=(o.risks||[]).map(r=>`<div class="risk"><span class="sev ${esc(r.severity)}"></span><span><b>${esc(r.label)}</b> <span class="rd">— ${esc(r.detail)}</span></span></div>`).join("")||`<div class="ai-idle">No notable risks flagged.</div>`;
+  const recs=(o.recommendations||[]).map((r,i)=>`<div class="rec-item"><span class="rec-num">${i+1}</span><span><b>${esc(r.action)}</b> <span class="rw">— ${esc(r.why)}</span></span></div>`).join("");
+  body.innerHTML=`<div class="state-pill tone-${esc(t)}"><span class="d"></span>${esc(o.state?o.state.label:"")}</div>`+
+    `<p class="ai-summary">${esc(o.summary||"")}</p>`+
+    `<div class="ai-cols"><div><div class="ai-h">Predicted (next 7 days)</div>${preds}</div>`+
+    `<div><div class="ai-h">Risks</div>${risks}<div class="ai-h" style="margin-top:16px">Recommendations</div>${recs}</div></div>`+
+    (o.watch?`<div class="watch"><span>👁</span><span><b>Watch:</b> ${esc(o.watch)}</span></div>`:"");
+}
+let predicting=false;
+async function runPredict(){
+  if(predicting)return; predicting=true;
+  const body=$("#ai-body"),btn=$("#predict-btn"); btn.disabled=true; btn.textContent="✦ Predicting…";
+  body.innerHTML=`<span class="ai-idle">Reasoning over your recovery, load, drivers and forecasts…</span><span class="cursor"></span>`;
+  try{
+    const r=await fetch("/api/insights");
+    if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(j.error==="not-enough-data"?"not enough data yet":j.detail||"unavailable"); }
+    const o=await r.json(); if(o._model)$("#ai-model").textContent="model: "+o._model; renderInsight(o);
+  }catch(e){ body.innerHTML=`<span class="ai-idle">Prediction unavailable: ${esc(e.message)}. Ensure Ollama is running (<code>ollama serve</code>).</span>`; }
+  finally{ predicting=false; btn.disabled=false; btn.textContent="✦ Predict"; }
+}
+
+/* ---------- chat ---------- */
+function mdLite(t){ const lines=t.split("\n"); let html="",inUl=false; const inl=s=>esc(s).replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/`(.+?)`/g,"<code>$1</code>");
+  for(const raw of lines){ const line=raw.replace(/\s+$/,""); if(/^\s*[-*•]\s+/.test(line)){ if(!inUl){html+="<ul>";inUl=true;} html+="<li>"+inl(line.replace(/^\s*[-*•]\s+/,""))+"</li>"; } else { if(inUl){html+="</ul>";inUl=false;} if(line.trim())html+="<p>"+inl(line)+"</p>"; } } if(inUl)html+="</ul>"; return html; }
+let chatHist=[], chatting=false;
+async function ask(q){
+  if(chatting||!q.trim())return; chatting=true;
+  const log=$("#chat-log"); const sg=$("#suggest"); if(sg)sg.style.display="none";
+  log.appendChild(el("div","msg u",esc(q)));
+  const a=el("div","msg a",'<span class="cursor"></span>'); log.appendChild(a); log.scrollTop=log.scrollHeight;
+  let acc="";
+  try{
+    const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:q,history:chatHist})});
+    if(!r.ok)throw new Error("unavailable");
+    const rd=r.body.getReader(),dec=new TextDecoder();
+    for(;;){ const{value,done}=await rd.read(); if(done)break; acc+=dec.decode(value,{stream:true}); a.innerHTML=mdLite(acc)+'<span class="cursor"></span>'; log.scrollTop=log.scrollHeight; }
+    a.innerHTML=mdLite(acc)||"(no answer)"; chatHist.push({role:"user",content:q},{role:"assistant",content:acc});
+  }catch(e){ a.innerHTML=`<span class="ai-idle">Unavailable: ${esc(e.message)}</span>`; }
+  finally{ chatting=false; }
+}
+function wireChat(){
+  const f=$("#chat-form"); if(!f)return;
+  f.addEventListener("submit",e=>{ e.preventDefault(); const i=$("#chat-input"); const q=i.value; i.value=""; ask(q); });
+  document.querySelectorAll("#suggest .chip-q").forEach(b=>b.addEventListener("click",()=>ask(b.textContent)));
+}
+
+/* ---------- login ---------- */
+function showHeaderBtns(on){ $("#sync-btn").style.display=on?"":"none"; $("#predict-btn").style.display=on?"":"none"; }
+let mfaPending=false;
+function renderLogin(){
+  showHeaderBtns(false);
+  const c=$("#content");
+  c.innerHTML=`<section class="card login">
+    <div class="login-title">Connect your Garmin ⌚</div>
+    <div class="login-sub">Sign in once to load your health data. Your password goes straight to Garmin over your own computer and is <b>never stored</b> — only a private session token is kept on this machine.</div>
+    <form id="login-form" autocomplete="on">
+      <input type="email" id="login-email" placeholder="Garmin email" autocomplete="username">
+      <input type="password" id="login-pass" placeholder="Garmin password" autocomplete="current-password">
+      <div id="mfa-row" style="display:none"><input type="text" id="login-mfa" placeholder="2-factor code (check email / authenticator)" inputmode="numeric" autocomplete="one-time-code" style="width:100%"></div>
+      <div class="login-err" id="login-err"></div>
+      <button class="btn primary" type="submit" id="login-btn">Connect Garmin</button>
+    </form>
+    <div class="login-note">Nothing leaves this computer. Data and predictions run locally.</div>
+  </section>`;
+  const form=$("#login-form"), err=$("#login-err"), btn=$("#login-btn");
+  form.addEventListener("submit",async e=>{
+    e.preventDefault(); err.textContent=""; btn.disabled=true;
+    try{
+      let r,j;
+      if(!mfaPending){
+        const email=$("#login-email").value, password=$("#login-pass").value;
+        if(!email||!password){ err.textContent="Enter your Garmin email and password."; btn.disabled=false; return; }
+        btn.textContent="Connecting…";
+        r=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
+        j=await r.json();
+        if(j.status==="mfa"){ mfaPending=true; $("#mfa-row").style.display="block"; $("#login-mfa").focus(); btn.textContent="Verify code"; btn.disabled=false; return; }
+      } else {
+        const code=$("#login-mfa").value;
+        if(!code){ err.textContent="Enter the 6-digit code."; btn.disabled=false; return; }
+        btn.textContent="Verifying…";
+        r=await fetch("/api/login/mfa",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code})});
+        j=await r.json();
+      }
+      if(j.status==="ok"){ await loadStatus(); await firstSync(); return; }
+      const map={"bad-credentials":"Wrong email or password.","no-pending-login":"Session expired — please start again.","missing-code":"Enter the code Garmin sent you."};
+      err.textContent=map[j.detail]||("Login failed"+(j.detail?": "+j.detail:"")+". If Garmin is rate-limiting, wait a few minutes.");
+      btn.textContent=mfaPending?"Verify code":"Connect Garmin"; btn.disabled=false;
+    }catch(ex){ err.textContent="Could not reach the app. Is it still running?"; btn.textContent="Connect Garmin"; btn.disabled=false; }
+  });
+}
+async function firstSync(){
+  mfaPending=false; showHeaderBtns(false);
+  const c=$("#content");
+  c.innerHTML=`<div class="syncing"><div class="spin"></div><div class="t">Loading your Garmin data…</div><div class="s">Pulling the last 30 days — this takes a minute or two the first time.</div></div>`;
+  try{
+    const r=await fetch("/api/refresh",{method:"POST"}); const j=await r.json();
+    if(!j.ok) throw new Error(j.error||"failed");
+    await loadStatus(); await loadData();
+  }catch(e){
+    c.innerHTML=`<div class="syncing"><div class="t">Couldn't load your data yet</div><div class="s">${esc(e.message)}<br>Garmin sometimes rate-limits the first pull. <a href="#" id="retry" style="color:var(--accent)">Try again</a>.</div></div>`;
+    const rt=$("#retry"); if(rt)rt.addEventListener("click",ev=>{ev.preventDefault(); firstSync();});
+  }
+}
+
+$("#predict-btn").addEventListener("click",runPredict);
+$("#sync-btn").addEventListener("click",async()=>{ const b=$("#sync-btn"); b.disabled=true; const o=b.textContent; b.textContent="↻ Syncing…"; try{ const r=await fetch("/api/refresh",{method:"POST"}); const j=await r.json(); if(!j.ok)throw new Error(j.error||"failed"); await loadStatus(); await loadData(); }catch(e){ alert("Sync failed: "+e.message+"\n(Garmin may be rate-limiting — try again shortly.)"); } finally{ b.disabled=false; b.textContent=o; } });
+
+async function boot(){
+  const s=await loadStatus();
+  if(!s.logged_in){ renderLogin(); return; }
+  showHeaderBtns(true);
+  if(!s.has_data){ await firstSync(); return; }
+  await loadData();
+}
+boot();
+</script>
+</body>
+</html>
