@@ -3,6 +3,8 @@ name = "vitalocal"
 version = "0.2.0"
 description = "VitaLocal — a private, on-device AI health coach for your Garmin: recovery score, 7-day forecasts, and local Ollama predictions, all on your own machine."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
     "anthropic>=0.111.0",

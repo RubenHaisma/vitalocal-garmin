@@ -187,4 +187,16 @@ vitalocal/                                          ← the package
 
 Personal data (`dashboard_data.json`, `~/.vitalocal/tokens/`) never leaves the machine and is gitignored.
 
-*Part of [VitaLocal](https://getvitalocal.com). Built for personal use with your own watch data. Not medical advice.*
+---
+
+## License & disclaimers
+
+**MIT** — see [`LICENSE`](LICENSE). The code is yours to run, modify, and share, with no warranty.
+
+**Not affiliated with Garmin.** VitaLocal is an independent project — not affiliated with, endorsed by,
+or sponsored by Garmin Ltd. *Garmin* and *Garmin Connect* are trademarks of Garmin Ltd. VitaLocal reads
+**your own** Garmin Connect data on your behalf via the community
+[`python-garminconnect`](https://github.com/cyberjunky/python-garminconnect) library (see the caution near
+the top); it uses no official Garmin API and implies no partnership.
+
+*Part of [VitaLocal](https://getvitalocal.com). Built for personal use with your own watch data. **Not medical advice.***
