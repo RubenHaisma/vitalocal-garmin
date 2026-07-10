@@ -28,6 +28,34 @@ your body in plain English — running **100% on your own laptop**.
 
 ---
 
+## ⚠️ Before you install — how this connects to Garmin
+
+> [!CAUTION]
+> **This uses an _unofficial_ way into Garmin, not an official API.** VitaLocal signs into
+> Garmin Connect with your **email and password** using the community library
+> [`python-garminconnect`](https://github.com/cyberjunky/python-garminconnect), and reads your
+> data the same way the Garmin Connect website does. There is no Garmin partnership, no approved
+> API key, and no endorsement behind this. Understand what that means before you run it:
+>
+> - **It's against Garmin's Terms of Service.** Garmin's ToS prohibit automated / programmatic
+>   access to Garmin Connect. Running this is your decision and your risk.
+> - **Your account could be rate-limited, flagged, or locked.** Too many logins in a short
+>   window already trip Garmin's `429` blocks; there's no guarantee an account stays in good
+>   standing.
+> - **It can break at any time.** It's reverse-engineered, not a contract. The day Garmin
+>   changes its login flow, logins stop working until the community library catches up.
+> - **Your password is handled locally — but you're still trusting third-party code with it.**
+>   It's entered on your own machine, used only to authenticate to Garmin, and never sent
+>   anywhere else. After the first login, only session **tokens** are kept, under
+>   `~/.vitalocal/tokens/`, and nothing ever leaves your computer.
+>
+> **This is a personal, run-it-yourself tool for your _own_ watch data — not a product to run
+> for other people.** If you want something officially sanctioned and durable, that path is
+> Garmin's official [Health API](https://developer.garmin.com/health-api/overview/) — a
+> developer-program application, not a `pip install`. Use this with your eyes open.
+
+---
+
 ## 🟢 Easiest way — let an AI set it up for you
 
 Not techy? No problem. Open the **Claude app** or the **ChatGPT app** on your laptop
